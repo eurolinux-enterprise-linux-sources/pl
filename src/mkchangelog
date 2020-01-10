@@ -1,0 +1,74 @@
+#!/bin/bash
+
+# Generate old-style ChangeLog files from the GIT log. Ultimately we may
+# wish to insert this into ChangeLog
+
+footer=false
+printdate=true
+
+done=false
+while [ $done = false ]; do
+    case "$1" in
+	--footer)
+		footer=true
+		shift
+		;;
+	--nodate)
+		printdate=false
+		shift
+		;;
+	*)	done=true
+		;;
+    esac
+done
+
+since="$1"
+
+if [ -z "$since" ]; then
+   echo "Usage: `basename $0` [--footer] [--nodate] version [path ...]"
+   exit 1
+fi
+
+shift;
+
+# Ensure case-sensitive matching
+LANG=C
+
+case "$since" in
+   [0-9].[0-9].[0-9]*)
+	since=V${since}
+	;;
+esac
+
+git log ${since}.. --pretty=format:"PATCH[%ad]%n%s%n%b" $* | awk '
+BEGIN		{ doprint="false";
+		  dateprinted="";
+		}
+/^PATCH[[]/	{ date="["  $2 " " $3 " " $5 "]";
+		  doprint="false";
+		  next;
+	        }
+/^[A-Z][A-Z]+:/	{ if ( dateprinted != date && "'$printdate'" == "true" )
+		  { printf("%s\n\n", date);
+		    dateprinted = date;
+		  }
+		  printf(" * %s\n", $0);
+		  doprint="true";
+		  next;
+		}
+/.*/ 		{ if ( doprint == "true" )
+		  { if ( $0 != "<unknown>" )
+		    { printf("   %s\n", $0);
+		    } else
+		    { printf("\n");
+		    }
+		  }
+		  next;
+		}
+'
+
+if [ "$footer" = true ]; then
+   echo ==============
+   echo VERSION $since
+   echo ==============
+fi

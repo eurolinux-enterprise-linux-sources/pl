@@ -1,0 +1,32 @@
+[Mar 19 2009]
+
+ * CLEANUP: Removed all trailing whitespace from all source-files.  This avoids many GIT (merge) warnings.
+[Sep 11 2008]
+
+ * PORT: Add AC_PREREQ to configure.h for systems that auto-select autoconf
+   versions.  After tip by Ulrich Neumerkel.
+   
+[Aug 11 2008]
+
+ * INSTALL: Remove all configure files from the git repository
+[Jan 23 2008]
+
+ * PORT: Bug#346: Allow overriding COFLAGS and CWFLAGS in package
+   configuration.   Keri Harris.
+   
+Jul 5, 2007
+
+ * FIXED: porter_stem(+,+) always succeeded!
+
+Jan 16, 2007
+
+ * Added test.pl
+
+Jun 20, 2006
+
+ * Fix illegal memory reference in porter_stem.c
+ * Added development target ln-install
+
+Nov 29, 2005
+ 
+ * First release

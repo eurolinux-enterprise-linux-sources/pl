@@ -1,0 +1,221 @@
+################################################################
+# SWI-Prolog CHR package
+# Author:    Jan Wielemaker. jan@swi.psy.uva.nl
+# Copyright: LGPL (see COPYING or www.gnu.org
+################################################################
+
+.SUFFIXES: .tex .dvi .doc .pl
+
+ifeq (@PROLOG_SYSTEM@,yap)
+prefix = @prefix@
+ROOTDIR = $(prefix)
+EROOTDIR = @exec_prefix@
+
+srcdir=@srcdir@
+
+BINDIR = $(EROOTDIR)/bin
+LIBDIR=$(EROOTDIR)/lib
+YAPLIBDIR=$(EROOTDIR)/lib/Yap
+SHAREDIR=$(ROOTDIR)/share/Yap
+
+SHELL=@SHELL@
+PL=@EXTEND_DYNLOADER_PATH@ $(DESTDIR)$(BINDIR)/yap $(DESTDIR)$(YAPLIBDIR)/startup 
+CHRDIR=$(SHAREDIR)/chr
+EXDIR=$(CHRDIR)/examples/chr
+LN_S=@LN_S@
+#
+#
+CC=@CC@
+CFLAGS= @CFLAGS@ $(YAP_EXTRAS) $(DEFS) -I$(srcdir) -I../.. -I$(srcdir)/../../include
+MKINDEX=true
+
+else	# SWI
+
+PLBASE=@PLBASE@
+PLARCH=@PLARCH@
+PLINCL=@PLINCL@
+PL=@PL@
+XPCEBASE=$(PLBASE)/xpce
+PKGDOC=$(PLBASE)/doc/packages
+PCEHOME=../xpce
+LIBDIR=$(PLBASE)/library
+CHRDIR=$(LIBDIR)/chr
+EXDIR=$(PKGDOC)/examples/chr
+DESTDIR=
+
+
+CC=@CC@
+COFLAGS=@COFLAGS@
+CWFLAGS=@CWFLAGS@
+CMFLAGS=@CMFLAGS@
+CIFLAGS=
+CFLAGS=$(COFLAGS) $(CWFLAGS) $(CMFLAGS) $(CIFLAGS) @DEFS@
+LIBS=@LIBS@
+
+LD=@LD@
+LDFLAGS=@LDSOFLAGS@
+
+MKINDEX=$(PL) -f none -g make -t halt
+
+DOCTOTEX=$(PCEHOME)/bin/doc2tex
+PLTOTEX=$(PCEHOME)/bin/pl2tex
+LATEX=latex
+DOC=chr
+TEX=$(DOC).tex
+DVI=$(DOC).dvi
+PDF=$(DOC).pdf
+HTML=$(DOC).html
+
+srcdir=.
+SHAREDIR=$(LIBDIR)
+
+endif	#YAP/SWI
+
+SHELL=@SHELL@
+
+INSTALL=@INSTALL@
+INSTALL_PROGRAM=@INSTALL_PROGRAM@
+INSTALL_DATA=@INSTALL_DATA@
+
+LIBPL=		$(srcdir)/chr_runtime.pl $(srcdir)/chr_op.pl \
+		chr_translate.pl $(srcdir)/chr_debug.pl \
+		$(srcdir)/chr_messages.pl \
+		$(srcdir)/pairlist.pl $(srcdir)/clean_code.pl \
+		$(srcdir)/find.pl $(srcdir)/a_star.pl \
+		$(srcdir)/binomialheap.pl $(srcdir)/builtins.pl \
+		$(srcdir)/chr_hashtable_store.pl $(srcdir)/listmap.pl \
+		guard_entailment.pl \
+		$(srcdir)/chr_compiler_options.pl \
+		$(srcdir)/chr_compiler_utility.pl \
+		$(srcdir)/chr_compiler_errors.pl \
+		$(srcdir)/chr_integertable_store.pl @CHR_TARGETS@
+TARGETS=	@CHR_TARGETS@
+CHRPL=		$(srcdir)/chr_swi.pl
+EXAMPLES=	chrfreeze.chr fib.chr gcd.chr primes.chr \
+		bool.chr family.chr fibonacci.chr leq.chr listdom.chr \
+		chrdif.chr
+
+all:		chr_translate.pl $(TARGETS)
+
+ifeq (@PROLOG_SYSTEM@,yap)
+
+SOBJS=chr_support@SHLIB_SUFFIX@
+
+chr_support.o: $(srcdir)/chr_support.c
+	$(CC) -c $(CFLAGS) $(SHLIB_CFLAGS) $(srcdir)/chr_support.c -o chr_support.o
+
+@DO_SECOND_LD@chr_support@SHLIB_SUFFIX@: chr_support.o
+@DO_SECOND_LD@	@SHLIB_LD@ -o chr_support@SHLIB_SUFFIX@ chr_support.o
+
+else
+
+chr_support.@SO@:	chr_support.o
+		$(LD) $(LDFLAGS) -o $@ chr_support.o
+
+endif
+
+chr_translate_bootstrap.pl: $(TARGETS)
+
+chr_translate_bootstrap1.pl: $(srcdir)/chr_translate_bootstrap1.chr $(srcdir)/chr_translate_bootstrap.pl
+		$(PL) -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step1('$<','$@'),halt" \
+		      -t 'halt(1)'
+		$(PL) -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step2('$<','$@'),halt" \
+		      -t 'halt(1)'
+
+chr_translate_bootstrap2.pl: $(srcdir)/chr_translate_bootstrap2.chr chr_translate_bootstrap1.pl 
+		$(PL) -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step2('$<','$@'),halt" \
+		      -t 'halt(1)'
+		$(PL) -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step3('$<','$@'),halt" \
+		      -t 'halt(1)'
+
+guard_entailment.pl: $(srcdir)/guard_entailment.chr chr_translate_bootstrap2.pl 
+		$(PL) -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step3('$<','$@'),halt" \
+		      -t 'halt(1)'
+
+chr_translate.pl: $(srcdir)/chr_translate.chr chr_translate_bootstrap2.pl guard_entailment.pl
+		$(PL) -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step3('$<','$@'),halt" \
+		      -t 'halt(1)'
+		$(PL) -L50M -G50M -T20M -p chr=. -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step4('guard_entailment.chr','guard_entailment.pl'),halt" \
+		      -t 'halt(1)'
+		$(PL) -L50M -G50M -T20M -p chr=. -q -f $(srcdir)/chr_swi_bootstrap.pl \
+		      -g "chr_compile_step4('$<','$@'),halt" \
+		      -t 'halt(1)'
+
+chr.pl:		$(srcdir)/chr_swi.pl
+		cp $< $@
+
+install:	$(LIBPL)
+		mkdir -p $(DESTDIR)$(CHRDIR)
+		$(INSTALL_DATA) $(LIBPL) $(DESTDIR)$(CHRDIR)
+		$(INSTALL_DATA) $(CHRPL) $(DESTDIR)$(SHAREDIR)/chr.pl
+		$(INSTALL_DATA) $(srcdir)/README   $(DESTDIR)$(CHRDIR)
+		$(MKINDEX)
+
+ln-install::
+		@$(MAKE) INSTALL_DATA='../ln-install' install
+
+rpm-install:	install
+
+pdf-install:	install-examples
+
+html-install:	install-examples
+
+install-examples::
+		mkdir -p $(DESTDIR)$(EXDIR)
+		(cd Examples && $(INSTALL_DATA) $(EXAMPLES) $(DESTDIR)$(EXDIR))
+
+uninstall:
+		(cd $(PLBASE)/library && rm -f $(LIBPL))
+		@IN_SWI@$$(PL) -f none -g make -t halt
+
+check:		chr.pl
+		$(PL) -q -f $(srcdir)/chr_test.pl -g test,halt -t 'halt(1)'
+
+
+################################################################
+# Documentation
+################################################################
+
+# NOTE: Manual is integrated in system manual
+
+doc:		pdf html
+#pdf:		$(PDF)
+#html:		$(HTML)
+pdf::
+html::
+
+$(HTML):	$(TEX)
+		latex2html $(DOC)
+		mv html/index.html $@
+
+$(PDF):		$(TEX)
+		../../man/runtex --pdf $(DOC)
+
+$(TEX):		$(DOCTOTEX)
+
+.doc.tex:
+		$(DOCTOTEX) $*.doc > $*.tex
+.pl.tex:
+		$(PLTOTEX) $*.pl > $*.tex
+
+################################################################
+# Clean
+################################################################
+
+clean:
+		rm -f *~ *.o *.so *% config.log
+		rm -f chr.pl chr_translate.pl
+		rm -f chr_translate_bootstrap1.pl chr_translate_bootstrap2.pl
+		rm -f guard_entailment.pl
+
+distclean:	clean
+		rm -f $(TARGETS) config.h config.cache config.status Makefile
+		rm -f $(TEX)
+		../../man/runtex --clean $(DOC)

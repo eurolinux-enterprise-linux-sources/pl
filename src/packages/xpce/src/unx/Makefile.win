@@ -1,0 +1,11 @@
+# UNX 		--- Unix File, Process and Network Classes
+
+!include ..\makefile.def
+
+UNXOBJS=	directory.obj file.obj process.obj socket.obj stream.obj
+
+objects:	$(UNXOBJS)
+		@%null
+
+clean:
+		rm -f *~ a.out core $(UNXOBJS) addlib
